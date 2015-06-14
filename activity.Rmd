@@ -1,0 +1,114 @@
+---
+title: "Data Analysis of Human Activity Recognition dataset"
+output: html_document
+---
+
+Executive Summary
+=================
+Six young health participants were asked to perform one set of 10 repetitions of the Unilateral Dumbbell Biceps Curl in five different fashions. The focus of the analysis is to build a model to predict the manner in which they did the exercise.
+The chosen model achieved >99% accuracy with a randomForest method.
+The model was then used to  successfully predict the activity associated with 20 specific test observations.
+
+
+
+Data Exploration
+===============
+The performance of the activity is classed as follows: exactly according to the specification (Class A), throwing the elbows to the front (Class B), lifting the dumbbell only halfway (Class C), lowering the dumbbell only halfway (Class D) and throwing the hips to the front (Class E). Class A corresponds to the specified execution of the exercise, while the other 4 classes correspond to common mistakes.
+
+There are many NA and blank fields in the data.  These same columns are blank and NA in the Testing data set.  Hence I decided to exclude them. In addition I removed column one which is simply an index and not a predictor. Similarly I decided to remove the user_name and timestamp variables as these should not be used as predictors.
+
+I extracted the 396 rows that appear to have complete data for all the columns. I subsetted the data using, data[!is.na(data$kurtosis_roll_belt),].  I ran a classification model (using rpart) and achieved an accuracy of 56% on the training data.  I also ran randomForest on this data and achieved an accuracy of 85%. This is a low accuracy so I decided that a model built on these 396 rows was not going to be optimal. 
+
+ 
+Cleaning the data
+=================
+Removed the first 7 columns in the data, an  ID variable in column one, the user name, timestamp and window columns as these are not predictors so should not be used in any models.
+
+Many variables have primarily NA values, these have been removed.
+
+The data is then split between training and testing data sets (60% training)
+
+
+```{r data explore, echo=FALSE,warning=FALSE}
+suppressPackageStartupMessages(library(caret));
+suppressPackageStartupMessages(library(rattle));
+library(randomForest);
+data<-read.csv(file="pml-training.csv", header=TRUE,na.strings=c("NA", "", "#DIV/0!"))
+NAs <- apply(data, 2, function(x) {   sum(is.na(x)) })
+data<- data[, which(NAs == 0)]
+data<-data[,-c(1:7)]
+set.seed(1234)
+inTrain <- createDataPartition(y=data$classe,
+                               p=0.6, list=FALSE) ## use 60% of the dataset for training
+training <- data[inTrain,]
+testing <- data[-inTrain,]
+
+```
+
+
+Data Analysis
+=============== 
+I built a classification tree using rpart in the caret package and then applied the model to the testing data. I used 10 cross validation runs.  You can see from the confusion table that this achieved an accuracy of just under 74%
+
+```{r analysis1}
+grid <-  expand.grid(cp=c(1:10)*0.01)
+model<-train(training$classe ~ ., method="rpart",data=training,tuneGrid=grid,trControl=trainControl(method="cv", number=10))
+fancyRpartPlot(model$finalModel)
+
+pred<-predict(model,testing)
+confusionMatrix(pred, testing$classe)
+
+## grid<-expand.grid(mtry=c(6))
+## modelrf<-train(training$classe ~ ., method="rf",data=training,tuneGrid=grid,trControl=trainControl## ## (method="cv", number=10))
+
+
+
+```    
+
+I then built a model using randomForest. The accuracy with this is much higher as expected reaching over 99%. You can see the relative importance of the variables below contrubuting to the model.  I used this model in the project submission on the 20 test rows.
+
+
+```{r analysis 2, fig.width=12, fig.height=12, echo=FALSE}
+modelrf<-randomForest(training$classe ~ .,data=training)
+varImpPlot(modelrf)
+pred<-predict(modelrf,testing)
+
+
+confusionMatrix(pred, testing$classe)
+
+   
+
+```    
+
+
+
+
+Reference
+========
+The dataset was from the following publication.
+Ugulino, W.; Cardador, D.; Vega, K.; Velloso, E.; Milidiu, R.; Fuks, H. Wearable Computing: Accelerometers' Data Classification of Body Postures and Movements. Proceedings of 21st Brazilian Symposium on Artificial Intelligence. Advances in Artificial Intelligence - SBIA 2012. In: Lecture Notes in Computer Science. , pp. 52-61. Curitiba, PR: Springer Berlin / Heidelberg, 2012. ISBN 978-3-642-34458-9. DOI: 10.1007/978-3-642-34459-6_6.
+
+Read more: http://groupware.les.inf.puc-rio.br/har#sbia_paper_section#ixzz3bBdRywP9  
+
+
+
+```{r, echo=FALSE}
+## predictions<- predict(modelrf, testing)
+
+## pml_write_file = function(x){
+## n = length(x)
+## for(i in 1:n){
+## filename = paste0("problem_id_",i,".txt")
+## write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE) }  }
+
+## pml_write_file(predictions)
+## data<-read.csv(file="pml-testing.csv", header=TRUE,na.strings=c("NA", "", "#DIV/0!"))
+
+```  
+```{r, echo=TRUE}
+
+
+
+```
+
+
